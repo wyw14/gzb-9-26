@@ -41,3 +41,19 @@ export function createExchange(myItemId, targetItemId) {
 export function getMyExchanges(userId) {
   return api.get('/exchanges/my', { params: { userId } }).then(res => res.data)
 }
+
+export function createBackup() {
+  return api.post('/backup').then(res => res.data)
+}
+
+export function getBackupList() {
+  return api.get('/backup').then(res => res.data)
+}
+
+export function downloadBackup(filename) {
+  return api.get('/backup/' + filename + '/download', { responseType: 'blob' }).then(res => res.data)
+}
+
+export function deleteBackup(filename) {
+  return api.delete('/backup/' + filename).then(res => res.data)
+}

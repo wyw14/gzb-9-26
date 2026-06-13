@@ -13,9 +13,14 @@ app.use(cors());
 app.use(express.json());
 
 const UPLOADS_DIR = path.join(__dirname, 'uploads');
+const BACKUP_DIR = path.join(__dirname, 'backups');
 
 if (!fs.existsSync(UPLOADS_DIR)) {
   fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+}
+
+if (!fs.existsSync(BACKUP_DIR)) {
+  fs.mkdirSync(BACKUP_DIR, { recursive: true });
 }
 
 const PLACEHOLDER_IMAGE = `data:image/svg+xml;base64,` + Buffer.from(`
@@ -413,6 +418,107 @@ app.get('/uploads/:filename', async (req, res) => {
   } catch (err) {
     console.error('动态生成模糊图失败:', err);
     return res.redirect(PLACEHOLDER_IMAGE);
+  }
+});
+
+app.post('/api/backup', (req, res) => {
+  try {
+    const items = readItems();
+    const exchanges = readExchanges();
+    const now = new Date();
+    const ts = now.getFullYear() +
+      String(now.getMonth() + 1).padStart(2, '0') +
+      String(now.getDate()).padStart(2, '0') + '_' +
+      String(now.getHours()).padStart(2, '0') +
+      String(now.getMinutes()).padStart(2, '0') +
+      String(now.getSeconds()).padStart(2, '0');
+
+    const backupFilename = 'backup_' + ts + '.json';
+    const backupData = {
+      backupTime: now.toISOString(),
+      items: items,
+      exchanges: exchanges
+    };
+
+    fs.writeFileSync(
+      path.join(BACKUP_DIR, backupFilename),
+      JSON.stringify(backupData, null, 2),
+      'utf-8'
+    );
+
+    const stats = fs.statSync(path.join(BACKUP_DIR, backupFilename));
+    res.status(201).json({
+      filename: backupFilename,
+      backupTime: now.toISOString(),
+      size: stats.size,
+      itemsCount: items.length,
+      exchangesCount: exchanges.length
+    });
+  } catch (err) {
+    console.error('创建备份失败:', err);
+    res.status(500).json({ error: '备份创建失败' });
+  }
+});
+
+app.get('/api/backup', (req, res) => {
+  try {
+    if (!fs.existsSync(BACKUP_DIR)) {
+      return res.json([]);
+    }
+    const files = fs.readdirSync(BACKUP_DIR)
+      .filter(f => f.endsWith('.json'))
+      .map(f => {
+        const filePath = path.join(BACKUP_DIR, f);
+        const stats = fs.statSync(filePath);
+        let itemsCount = 0;
+        let exchangesCount = 0;
+        try {
+          const data = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+          itemsCount = data.items ? data.items.length : 0;
+          exchangesCount = data.exchanges ? data.exchanges.length : 0;
+        } catch (e) {}
+        return {
+          filename: f,
+          size: stats.size,
+          createdAt: stats.mtime.toISOString(),
+          itemsCount,
+          exchangesCount
+        };
+      })
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+
+    res.json(files);
+  } catch (err) {
+    console.error('获取备份列表失败:', err);
+    res.status(500).json({ error: '获取备份列表失败' });
+  }
+});
+
+app.get('/api/backup/:filename/download', (req, res) => {
+  const { filename } = req.params;
+  const filePath = path.join(BACKUP_DIR, filename);
+
+  if (!fs.existsSync(filePath)) {
+    return res.status(404).json({ error: '备份文件不存在' });
+  }
+
+  res.download(filePath, filename);
+});
+
+app.delete('/api/backup/:filename', (req, res) => {
+  const { filename } = req.params;
+  const filePath = path.join(BACKUP_DIR, filename);
+
+  if (!fs.existsSync(filePath)) {
+    return res.status(404).json({ error: '备份文件不存在' });
+  }
+
+  try {
+    fs.unlinkSync(filePath);
+    res.json({ message: '备份已删除' });
+  } catch (err) {
+    console.error('删除备份失败:', err);
+    res.status(500).json({ error: '删除备份失败' });
   }
 });
 

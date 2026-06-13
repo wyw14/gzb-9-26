@@ -8,6 +8,7 @@
           <router-link to="/publish" class="nav-link" active-class="active">发布物品</router-link>
           <router-link to="/my-items" class="nav-link" active-class="active">我的物品</router-link>
           <router-link to="/my-exchanges" class="nav-link" active-class="active">交换记录</router-link>
+          <router-link to="/backup" class="nav-link" active-class="active">数据备份</router-link>
           <span style="margin-left:16px;color:#667eea;font-weight:500;">👤 {{ userStore.user.name }}</span>
         </div>
       </nav>

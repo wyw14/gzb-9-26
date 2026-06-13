@@ -65,6 +65,8 @@ Thumbs.db
 # Runtime uploads / generated assets
 server/uploads/
 **/uploads/
+server/backups/
+**/backups/
 
 # Prompt files not part of baseline
 任务提示词.md
