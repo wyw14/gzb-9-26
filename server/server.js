@@ -421,19 +421,39 @@ app.get('/uploads/:filename', async (req, res) => {
   }
 });
 
+function isValidBackupFilename(filename) {
+  if (!filename || typeof filename !== 'string') return false;
+  if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) return false;
+  if (!/^backup_\d{8}_\d{6}(?:_\d+)?\.json$/.test(filename)) return false;
+  const resolved = path.resolve(BACKUP_DIR, filename);
+  return resolved.startsWith(path.resolve(BACKUP_DIR));
+}
+
+function generateUniqueBackupFilename() {
+  const now = new Date();
+  const ts = now.getFullYear() +
+    String(now.getMonth() + 1).padStart(2, '0') +
+    String(now.getDate()).padStart(2, '0') + '_' +
+    String(now.getHours()).padStart(2, '0') +
+    String(now.getMinutes()).padStart(2, '0') +
+    String(now.getSeconds()).padStart(2, '0');
+  let baseName = 'backup_' + ts;
+  let counter = 1;
+  let filename = baseName + '.json';
+  while (fs.existsSync(path.join(BACKUP_DIR, filename))) {
+    filename = baseName + '_' + counter + '.json';
+    counter++;
+  }
+  return filename;
+}
+
 app.post('/api/backup', (req, res) => {
   try {
     const items = readItems();
     const exchanges = readExchanges();
     const now = new Date();
-    const ts = now.getFullYear() +
-      String(now.getMonth() + 1).padStart(2, '0') +
-      String(now.getDate()).padStart(2, '0') + '_' +
-      String(now.getHours()).padStart(2, '0') +
-      String(now.getMinutes()).padStart(2, '0') +
-      String(now.getSeconds()).padStart(2, '0');
 
-    const backupFilename = 'backup_' + ts + '.json';
+    const backupFilename = generateUniqueBackupFilename();
     const backupData = {
       backupTime: now.toISOString(),
       items: items,
@@ -496,6 +516,11 @@ app.get('/api/backup', (req, res) => {
 
 app.get('/api/backup/:filename/download', (req, res) => {
   const { filename } = req.params;
+
+  if (!isValidBackupFilename(filename)) {
+    return res.status(400).json({ error: '无效的备份文件名' });
+  }
+
   const filePath = path.join(BACKUP_DIR, filename);
 
   if (!fs.existsSync(filePath)) {
@@ -507,6 +532,11 @@ app.get('/api/backup/:filename/download', (req, res) => {
 
 app.delete('/api/backup/:filename', (req, res) => {
   const { filename } = req.params;
+
+  if (!isValidBackupFilename(filename)) {
+    return res.status(400).json({ error: '无效的备份文件名' });
+  }
+
   const filePath = path.join(BACKUP_DIR, filename);
 
   if (!fs.existsSync(filePath)) {
